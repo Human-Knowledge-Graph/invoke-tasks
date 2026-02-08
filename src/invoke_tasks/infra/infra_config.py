@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -35,7 +36,7 @@ class BackendBucket:
 @dataclass
 class TfVars:
     env: str
-    variables: dict[str, str]
+    variables: dict[str, Any]
 
 
 @dataclass
@@ -155,6 +156,18 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
     return config
 
 
+def _format_tfvars_value(value: Any) -> str:
+    """Format a Python value as a Terraform tfvars value."""
+    if isinstance(value, list):
+        items = ",\n".join(f'  "{item}"' for item in value)
+        return f"[\n{items},\n]"
+    elif isinstance(value, dict):
+        items = "\n".join(f'  "{k}" = "{v}"' for k, v in value.items())
+        return f"{{\n{items}\n}}"
+    else:
+        return f'"{value}"'
+
+
 def _generate_tfvars_files(project_root: Path, tfvars: list[TfVars]) -> None:
     infra_dir = project_root / "infra"
     if not infra_dir.exists():
@@ -164,5 +177,8 @@ def _generate_tfvars_files(project_root: Path, tfvars: list[TfVars]) -> None:
         )
     for tv in tfvars:
         tfvars_path = infra_dir / f"{tv.env.lower()}.tfvars"
-        lines = [f'{key} = "{value}"' for key, value in tv.variables.items()]
+        lines = [
+            f"{key} = {_format_tfvars_value(value)}"
+            for key, value in tv.variables.items()
+        ]
         tfvars_path.write_text("\n".join(lines) + "\n")
