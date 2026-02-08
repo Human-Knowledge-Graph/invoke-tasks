@@ -86,12 +86,16 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     )
     def apply(c: Context, env: str, auto_approve: bool = False) -> None:
         """Runs terraform apply with backend config."""
+        c.run(_init_cmd(env))
         auto_approve_flag = "-auto-approve" if auto_approve else ""
-        c.run(
-            f"{_init_cmd(env)} && "
+        import subprocess
+
+        subprocess.run(
+            f"cd {infra_dir} && "
             f"terraform apply {auto_approve_flag} "
             f"--var-file=./{env.lower()}.tfvars",
-            pty=True,
+            shell=True,
+            check=True,
         )
 
     @task(
