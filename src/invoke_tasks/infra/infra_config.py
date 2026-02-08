@@ -29,6 +29,7 @@ class BackendBucket:
     env: str
     hosted_on: str
     bucket_name: str
+    region: str | None
 
 
 @dataclass
@@ -124,6 +125,7 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
                 env=env,
                 hosted_on=values["hosted_on"],
                 bucket_name=values["bucket_name"],
+                region=values.get("region"),
             )
         )
 
