@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -152,8 +153,65 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
         project_root=resolved_root,
     )
     if tfvars:
+        _validate_tfvars_against_variables(resolved_root, config.tfvars)
         _generate_tfvars_files(resolved_root, config.tfvars)
     return config
+
+
+def _parse_variables_tf(infra_dir: Path) -> tuple[set[str], set[str]]:
+    """Parse variables.tf and return (all variable names, variables with defaults)."""
+    variables_tf = infra_dir / "variables.tf"
+    if not variables_tf.exists():
+        raise FileNotFoundError(
+            f"variables.tf not found at {variables_tf}. "
+            f"Cannot validate tfvars against Terraform variables."
+        )
+    content = variables_tf.read_text()
+    all_vars = set(re.findall(r'variable\s+"(\w+)"', content))
+    # Extract each variable block handling nested braces
+    defaulted = set()
+    for match in re.finditer(r'variable\s+"(\w+)"\s*\{', content):
+        name = match.group(1)
+        start = match.end()
+        depth = 1
+        for i in range(start, len(content)):
+            if content[i] == "{":
+                depth += 1
+            elif content[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    body = content[start:i]
+                    if re.search(r'^\s*default\s*=', body, re.MULTILINE):
+                        defaulted.add(name)
+                    break
+    return all_vars, defaulted
+
+
+def _validate_tfvars_against_variables(
+    project_root: Path, tfvars: list[TfVars]
+) -> None:
+    infra_dir = project_root / "infra"
+    all_vars, defaulted = _parse_variables_tf(infra_dir)
+    required_vars = all_vars - defaulted
+
+    errors = []
+    for tv in tfvars:
+        yaml_keys = set(tv.variables.keys())
+        missing = required_vars - yaml_keys
+        extra = yaml_keys - all_vars
+        if missing:
+            errors.append(
+                f"  env '{tv.env}': missing required variables: {sorted(missing)}"
+            )
+        if extra:
+            errors.append(
+                f"  env '{tv.env}': extra keys not in variables.tf: {sorted(extra)}"
+            )
+    if errors:
+        raise ValueError(
+            "tfvars in infra.yaml do not match variables.tf:\n"
+            + "\n".join(errors)
+        )
 
 
 def _format_tfvars_value(value: Any) -> str:
