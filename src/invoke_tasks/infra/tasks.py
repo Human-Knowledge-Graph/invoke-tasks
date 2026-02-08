@@ -84,6 +84,7 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
         c.run(
             f"cd {infra_dir};terraform apply {auto_approve_flag} "
             f"--var-file=./{env.lower()}.tfvars ",
+            pty=True,
         )
 
     @task(
