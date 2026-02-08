@@ -52,7 +52,7 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
                 backend_args += f' -backend-config="prefix=terraform/state"'
         return (
             f"cd {infra_dir} && "
-            f"terraform init --upgrade {backend_args}"
+            f"terraform init --upgrade -reconfigure {backend_args}"
         )
 
     @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
