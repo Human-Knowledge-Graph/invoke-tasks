@@ -91,7 +91,7 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
 
     infra_yaml_path = resolved_root / "infra.yaml"
     raw = _read_infra_config(resolved_root)
-    for section in ("envs", "backend_buckets", "tfvars"):
+    for section in ("envs", "backend_buckets"):
         if section not in raw:
             raise KeyError(
                 f"'{section}' key not found in {infra_yaml_path}. "
@@ -129,17 +129,20 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
             )
         )
 
-    env_names = {e.env for e in envs}
-    tfvars_keys = set(raw["tfvars"].keys())
-    if env_names != tfvars_keys:
-        raise KeyError(
-            f"tfvars keys {tfvars_keys} do not match envs keys {env_names} "
-            f"in {infra_yaml_path}. They must have the same environments."
-        )
+    tfvars: list[TfVars] = []
+    if "tfvars" in raw:
+        env_names = {e.env for e in envs}
+        tfvars_keys = set(raw["tfvars"].keys())
+        if env_names != tfvars_keys:
+            raise KeyError(
+                f"tfvars keys {tfvars_keys} do not match envs keys {env_names} "
+                f"in {infra_yaml_path}. They must have the same environments."
+            )
 
-    tfvars = [
-        TfVars(env=env, variables=values) for env, values in raw["tfvars"].items()
-    ]
+        tfvars = [
+            TfVars(env=env, variables=values)
+            for env, values in raw["tfvars"].items()
+        ]
 
     config = InfraConfig(
         envs=envs,
@@ -147,7 +150,8 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
         tfvars=tfvars,
         project_root=resolved_root,
     )
-    _generate_tfvars_files(resolved_root, config.tfvars)
+    if tfvars:
+        _generate_tfvars_files(resolved_root, config.tfvars)
     return config
 
 
