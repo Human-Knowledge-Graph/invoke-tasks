@@ -49,11 +49,18 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
         Then you have to run the infra.create-backend-bucket first
         """
         bucket = config.get_backend_bucket(env)
+        backend_args = f'-backend-config="bucket={bucket.bucket_name}"'
+        match bucket.hosted_on.upper():
+            case "AWS":
+                backend_args += (
+                    f' -backend-config="key=terraform/state"'
+                    f' -backend-config="region={bucket.region}"'
+                )
+            case "GCP":
+                backend_args += f' -backend-config="prefix=terraform/state"'
         c.run(
             f"cd {infra_dir};"
-            "terraform init --upgrade "
-            f'-backend-config="bucket={bucket.bucket_name}" '
-            f'-backend-config="prefix=terraform/state" ',
+            f"terraform init --upgrade {backend_args}",
         )
 
     @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
