@@ -38,16 +38,8 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
         bucket = config.get_backend_bucket(env)
         _create_backend_bucket(c, env_config, bucket)
 
-    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
-    def init(c: Context, env: str) -> None:
-        """
-        Runs terraform init with backend config.
-
-        If you get this error:
-        Error: Failed to get existing workspaces: querying Cloud Storage failed:
-         storage: bucket doesn't exist
-        Then you have to run the infra.create-backend-bucket first
-        """
+    def _init_cmd(env: str) -> str:
+        """Build the terraform init command string."""
         bucket = config.get_backend_bucket(env)
         backend_args = f'-backend-config="bucket={bucket.bucket_name}"'
         match bucket.hosted_on.upper():
@@ -58,16 +50,31 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
                 )
             case "GCP":
                 backend_args += f' -backend-config="prefix=terraform/state"'
-        c.run(
-            f"cd {infra_dir};"
-            f"terraform init --upgrade {backend_args}",
+        return (
+            f"cd {infra_dir} && "
+            f"terraform init --upgrade {backend_args}"
         )
+
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def init(c: Context, env: str) -> None:
+        """
+        Runs terraform init with backend config.
+
+        If you get this error:
+        Error: Failed to get existing workspaces: querying Cloud Storage failed:
+         storage: bucket doesn't exist
+        Then you have to run the infra.create-backend-bucket first
+        """
+        c.run(_init_cmd(env), pty=True)
 
     @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
     def plan(c: Context, env: str) -> None:
         """Runs terraform plan with backend config."""
-        init(c, env=env)
-        c.run(f"cd {infra_dir};terraform plan --var-file=./{env.lower()}.tfvars ")
+        c.run(
+            f"{_init_cmd(env)} && "
+            f"terraform plan --var-file=./{env.lower()}.tfvars",
+            pty=True,
+        )
 
     @task(
         help={
@@ -79,11 +86,11 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     )
     def apply(c: Context, env: str, auto_approve: bool = False) -> None:
         """Runs terraform apply with backend config."""
-        init(c, env=env)
         auto_approve_flag = "-auto-approve" if auto_approve else ""
         c.run(
-            f"cd {infra_dir};terraform apply {auto_approve_flag} "
-            f"--var-file=./{env.lower()}.tfvars ",
+            f"{_init_cmd(env)} && "
+            f"terraform apply {auto_approve_flag} "
+            f"--var-file=./{env.lower()}.tfvars",
             pty=True,
         )
 
@@ -95,8 +102,10 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     )
     def raw_output(c: Context, env: str, output: str) -> None:
         """Runs terraform output to fetch a specific value."""
-        init(c, env=env)
-        c.run(f"cd {infra_dir};terraform output -raw {output}")
+        c.run(
+            f"{_init_cmd(env)} && terraform output -raw {output}",
+            pty=True,
+        )
 
     @task(
         help={
@@ -106,8 +115,10 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     )
     def state_remove(c: Context, env: str, resource: str) -> None:
         """Removes object from terraform state."""
-        init(c, env=env)
-        c.run(f"cd {infra_dir};terraform state rm {resource}")
+        c.run(
+            f"{_init_cmd(env)} && terraform state rm {resource}",
+            pty=True,
+        )
 
     @task(
         help={
@@ -116,8 +127,10 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     )
     def state_list(c: Context, env: str) -> None:
         """Lists available instances in the state."""
-        init(c, env=env)
-        c.run(f"cd {infra_dir};terraform state list")
+        c.run(
+            f"{_init_cmd(env)} && terraform state list",
+            pty=True,
+        )
 
     @task(help={})
     def fmt(c: Context) -> None:
