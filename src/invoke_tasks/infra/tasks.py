@@ -98,6 +98,14 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
             check=True,
         )
 
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def output(c: Context, env: str) -> None:
+        """Runs terraform output to display all outputs."""
+        c.run(
+            f"{_init_cmd(env)} && terraform output",
+            pty=True,
+        )
+
     @task(
         help={
             "env": "Environment name (e.g. PROD). Either DEV or PROD.",
@@ -148,6 +156,7 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     ns_infra.add_task(init)
     ns_infra.add_task(plan)
     ns_infra.add_task(apply)
+    ns_infra.add_task(output)
     ns_infra.add_task(raw_output)
     ns_infra.add_task(state_remove)
     ns_infra.add_task(state_list)
