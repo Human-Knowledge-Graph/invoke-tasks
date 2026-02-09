@@ -98,6 +98,28 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
             check=True,
         )
 
+    @task(
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "auto_approve": (
+                "Auto-approve terraform destroy without prompting (default: False)"
+            ),
+        },
+    )
+    def destroy(c: Context, env: str, auto_approve: bool = False) -> None:
+        """Runs terraform destroy with backend config."""
+        c.run(_init_cmd(env))
+        auto_approve_flag = "-auto-approve" if auto_approve else ""
+        import subprocess
+
+        subprocess.run(
+            f"cd {infra_dir} && "
+            f"terraform destroy {auto_approve_flag} "
+            f"--var-file=./{env.lower()}.tfvars",
+            shell=True,
+            check=True,
+        )
+
     @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
     def output(c: Context, env: str) -> None:
         """Runs terraform output to display all outputs."""
@@ -156,6 +178,7 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     ns_infra.add_task(init)
     ns_infra.add_task(plan)
     ns_infra.add_task(apply)
+    ns_infra.add_task(destroy)
     ns_infra.add_task(output)
     ns_infra.add_task(raw_output)
     ns_infra.add_task(state_remove)
