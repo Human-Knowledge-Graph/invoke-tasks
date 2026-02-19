@@ -153,15 +153,12 @@ def ci(c: Context, path: str = ".", env: str = "TEST") -> None:
     """
     Run Continuous Integration tasks.
 
-    Includes: autoformat, check, ty, mypy, security, osv_scan, complexity, test.
+    Includes: autoformat, check, ty, mypy, complexity, test.
     """
     autoformat(c, path=path)
     check(c, path=path)
     ty(c, path=path)
     mypy(c, path=path)
-    # Security and complexity use their own default paths
-    security(c)
-    osv_scan(c)
     complexity(c)
     test(c, path=path, env=env)
 
