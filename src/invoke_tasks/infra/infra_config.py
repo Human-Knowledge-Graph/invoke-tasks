@@ -24,6 +24,7 @@ class EnvConfig:
     hosted_on: str
     aws_profile: str | None
     gcp_project_id: str | None
+    infra_dir: str
 
 
 @dataclass
@@ -102,16 +103,18 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
 
     envs = []
     for env, values in raw["envs"].items():
-        if "hosted_on" not in values:
-            raise KeyError(
-                f"Missing 'hosted_on' for env '{env}' in {infra_yaml_path}."
-            )
+        for key in ("hosted_on", "infra_dir"):
+            if key not in values:
+                raise KeyError(
+                    f"Missing '{key}' for env '{env}' in {infra_yaml_path}."
+                )
         envs.append(
             EnvConfig(
                 env=env,
                 hosted_on=values["hosted_on"],
                 aws_profile=values.get("aws_profile"),
                 gcp_project_id=values.get("gcp_project_id"),
+                infra_dir=values["infra_dir"],
             )
         )
 
@@ -152,9 +155,11 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
         tfvars=tfvars,
         project_root=resolved_root,
     )
-    if tfvars:
-        _validate_tfvars_against_variables(resolved_root, config.tfvars)
-        _generate_tfvars_files(resolved_root, config.tfvars)
+    for tv in config.tfvars:
+        env_config = config.get_env(tv.env)
+        infra_path = resolved_root / env_config.infra_dir
+        _validate_tfvars_against_variables(infra_path, tv)
+        _generate_tfvars_files(infra_path, tv)
     return config
 
 
@@ -187,29 +192,25 @@ def _parse_variables_tf(infra_dir: Path) -> tuple[set[str], set[str]]:
     return all_vars, defaulted
 
 
-def _validate_tfvars_against_variables(
-    project_root: Path, tfvars: list[TfVars]
-) -> None:
-    infra_dir = project_root / "infra"
-    all_vars, defaulted = _parse_variables_tf(infra_dir)
+def _validate_tfvars_against_variables(infra_path: Path, tv: TfVars) -> None:
+    all_vars, defaulted = _parse_variables_tf(infra_path)
     required_vars = all_vars - defaulted
 
+    yaml_keys = set(tv.variables.keys())
+    missing = required_vars - yaml_keys
+    extra = yaml_keys - all_vars
     errors = []
-    for tv in tfvars:
-        yaml_keys = set(tv.variables.keys())
-        missing = required_vars - yaml_keys
-        extra = yaml_keys - all_vars
-        if missing:
-            errors.append(
-                f"  env '{tv.env}': missing required variables: {sorted(missing)}"
-            )
-        if extra:
-            errors.append(
-                f"  env '{tv.env}': extra keys not in variables.tf: {sorted(extra)}"
-            )
+    if missing:
+        errors.append(
+            f"  env '{tv.env}': missing required variables: {sorted(missing)}"
+        )
+    if extra:
+        errors.append(
+            f"  env '{tv.env}': extra keys not in variables.tf: {sorted(extra)}"
+        )
     if errors:
         raise ValueError(
-            "tfvars in infra.yaml do not match variables.tf:\n"
+            f"tfvars in infra.yaml do not match {infra_path}/variables.tf:\n"
             + "\n".join(errors)
         )
 
@@ -226,17 +227,15 @@ def _format_tfvars_value(value: Any) -> str:
         return f'"{value}"'
 
 
-def _generate_tfvars_files(project_root: Path, tfvars: list[TfVars]) -> None:
-    infra_dir = project_root / "infra"
-    if not infra_dir.exists():
+def _generate_tfvars_files(infra_path: Path, tv: TfVars) -> None:
+    if not infra_path.exists():
         raise FileNotFoundError(
-            f"infra/ directory not found at {infra_dir}. "
-            f"Please create it in the project root: {project_root}"
+            f"infra directory not found at {infra_path}. "
+            f"Please create it before running this command."
         )
-    for tv in tfvars:
-        tfvars_path = infra_dir / f"{tv.env.lower()}.tfvars"
-        lines = [
-            f"{key} = {_format_tfvars_value(value)}"
-            for key, value in tv.variables.items()
-        ]
-        tfvars_path.write_text("\n".join(lines) + "\n")
+    tfvars_path = infra_path / f"{tv.env.lower()}.tfvars"
+    lines = [
+        f"{key} = {_format_tfvars_value(value)}"
+        for key, value in tv.variables.items()
+    ]
+    tfvars_path.write_text("\n".join(lines) + "\n")

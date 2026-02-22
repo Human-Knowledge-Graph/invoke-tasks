@@ -1,5 +1,7 @@
 """Factory function to build the infra task collection."""
 
+from pathlib import Path
+
 from invoke.collection import Collection
 from invoke.context import Context
 from invoke.tasks import task
@@ -18,7 +20,8 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     if config is None:
         config = load_infra_config()
 
-    infra_dir = config.project_root / "infra"
+    def _infra_dir(env: str) -> Path:
+        return config.project_root / config.get_env(env).infra_dir
 
     @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
     def get_backend_bucket_name(c: Context, env: str) -> None:
@@ -51,7 +54,7 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
             case "GCP":
                 backend_args += f' -backend-config="prefix=terraform/state"'
         return (
-            f"cd {infra_dir} && "
+            f"cd {_infra_dir(env)} && "
             f"terraform init --upgrade -reconfigure {backend_args}"
         )
 
@@ -91,7 +94,7 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
         import subprocess
 
         subprocess.run(
-            f"cd {infra_dir} && "
+            f"cd {_infra_dir(env)} && "
             f"terraform apply {auto_approve_flag} "
             f"--var-file=./{env.lower()}.tfvars",
             shell=True,
@@ -113,7 +116,7 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
         import subprocess
 
         subprocess.run(
-            f"cd {infra_dir} && "
+            f"cd {_infra_dir(env)} && "
             f"terraform destroy {auto_approve_flag} "
             f"--var-file=./{env.lower()}.tfvars",
             shell=True,
@@ -168,8 +171,13 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
 
     @task(help={})
     def fmt(c: Context) -> None:
-        """Runs terraform fmt."""
-        c.run(f"cd {infra_dir};terraform fmt --recursive")
+        """Runs terraform fmt on all infra directories."""
+        seen: set[Path] = set()
+        for env_config in config.envs:
+            infra_dir = config.project_root / env_config.infra_dir
+            if infra_dir not in seen:
+                seen.add(infra_dir)
+                c.run(f"cd {infra_dir};terraform fmt --recursive")
 
     ns_infra = Collection("infra")
     ns_infra.add_task(create_backend_bucket)
