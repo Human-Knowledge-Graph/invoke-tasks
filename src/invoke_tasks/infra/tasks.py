@@ -169,6 +169,20 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
             pty=True,
         )
 
+    @task(
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "json": "Output in JSON format instead of human-readable.",
+        },
+    )
+    def show(c: Context, env: str, json: bool = False) -> None:
+        """Runs terraform show to display the full state."""
+        json_flag = "-json" if json else ""
+        c.run(
+            f"{_init_cmd(env)} && terraform show {json_flag}",
+            pty=not json,
+        )
+
     @task(help={})
     def fmt(c: Context) -> None:
         """Runs terraform fmt on all infra directories."""
@@ -191,6 +205,7 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     ns_infra.add_task(raw_output)
     ns_infra.add_task(state_remove)
     ns_infra.add_task(state_list)
+    ns_infra.add_task(show)
     ns_infra.add_task(fmt)
 
     return ns_infra
