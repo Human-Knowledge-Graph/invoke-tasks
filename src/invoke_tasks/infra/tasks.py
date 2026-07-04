@@ -183,6 +183,137 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
             pty=not json,
         )
 
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def validate(c: Context, env: str) -> None:
+        """Validates the Terraform configuration files."""
+        c.run(f"{_init_cmd(env)} && terraform validate", pty=True)
+
+    @task(
+        name="import",
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "address": "Terraform resource address (e.g. aws_s3_bucket.website).",
+            "resource_id": "Cloud resource ID to import (e.g. my-bucket-name).",
+        },
+    )
+    def import_resource(c: Context, env: str, address: str, resource_id: str) -> None:
+        """Imports an existing cloud resource into Terraform state."""
+        c.run(
+            f"{_init_cmd(env)} && "
+            f"terraform import --var-file=./{env.lower()}.tfvars {address} {resource_id}",
+            pty=True,
+        )
+
+    @task(
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "resource": "Terraform resource address to inspect.",
+        },
+    )
+    def state_show(c: Context, env: str, resource: str) -> None:
+        """Shows full details of a single resource in state."""
+        c.run(f"{_init_cmd(env)} && terraform state show {resource}", pty=True)
+
+    @task(
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "source": "Source resource address.",
+            "destination": "Destination resource address.",
+        },
+    )
+    def state_mv(c: Context, env: str, source: str, destination: str) -> None:
+        """Moves a resource within Terraform state."""
+        c.run(
+            f"{_init_cmd(env)} && terraform state mv {source} {destination}",
+            pty=True,
+        )
+
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def workspace_list(c: Context, env: str) -> None:
+        """Lists all Terraform workspaces."""
+        c.run(f"{_init_cmd(env)} && terraform workspace list", pty=True)
+
+    @task(
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "name": "Name of the workspace to create.",
+        },
+    )
+    def workspace_new(c: Context, env: str, name: str) -> None:
+        """Creates a new Terraform workspace."""
+        c.run(f"{_init_cmd(env)} && terraform workspace new {name}", pty=True)
+
+    @task(
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "name": "Name of the workspace to select.",
+        },
+    )
+    def workspace_select(c: Context, env: str, name: str) -> None:
+        """Selects an existing Terraform workspace."""
+        c.run(f"{_init_cmd(env)} && terraform workspace select {name}", pty=True)
+
+    @task(
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "name": "Name of the workspace to delete.",
+        },
+    )
+    def workspace_delete(c: Context, env: str, name: str) -> None:
+        """Deletes a Terraform workspace."""
+        c.run(f"{_init_cmd(env)} && terraform workspace delete {name}", pty=True)
+
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def workspace_show(c: Context, env: str) -> None:
+        """Shows the name of the current Terraform workspace."""
+        c.run(f"{_init_cmd(env)} && terraform workspace show", pty=True)
+
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def providers(c: Context, env: str) -> None:
+        """Shows required providers and their version constraints."""
+        c.run(f"{_init_cmd(env)} && terraform providers", pty=True)
+
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def graph(c: Context, env: str) -> None:
+        """Outputs a dependency graph in DOT format (pipe to graphviz: | dot -Tsvg)."""
+        c.run(f"{_init_cmd(env)} && terraform graph", pty=False)
+
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def console(c: Context, env: str) -> None:
+        """Opens an interactive console for evaluating Terraform expressions."""
+        c.run(
+            f"{_init_cmd(env)} && "
+            f"terraform console --var-file=./{env.lower()}.tfvars",
+            pty=True,
+        )
+
+    @task(
+        help={
+            "env": "Environment name (e.g. PROD). Either DEV or PROD.",
+            "lock_id": "Lock ID shown in the error message.",
+        },
+    )
+    def force_unlock(c: Context, env: str, lock_id: str) -> None:
+        """Releases a stuck Terraform state lock."""
+        c.run(
+            f"{_init_cmd(env)} && terraform force-unlock -force {lock_id}",
+            pty=True,
+        )
+
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def get(c: Context, env: str) -> None:
+        """Downloads and updates Terraform modules without reinitialising the backend."""
+        c.run(f"cd {_infra_dir(env)} && terraform get", pty=True)
+
+    @task(help={"env": "Environment name (e.g. PROD). Either DEV or PROD."})
+    def refresh(c: Context, env: str) -> None:
+        """Updates the state file to match real infrastructure."""
+        c.run(
+            f"{_init_cmd(env)} && "
+            f"terraform refresh --var-file=./{env.lower()}.tfvars",
+            pty=True,
+        )
+
     @task(help={})
     def fmt(c: Context) -> None:
         """Runs terraform fmt on all infra directories."""
@@ -198,14 +329,29 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     ns_infra.add_task(get_backend_bucket_name)
     ns_infra.add_task(set_cloud_provider)
     ns_infra.add_task(init)
+    ns_infra.add_task(validate)
     ns_infra.add_task(plan)
     ns_infra.add_task(apply)
     ns_infra.add_task(destroy)
     ns_infra.add_task(output)
     ns_infra.add_task(raw_output)
+    ns_infra.add_task(import_resource)
     ns_infra.add_task(state_remove)
     ns_infra.add_task(state_list)
+    ns_infra.add_task(state_show)
+    ns_infra.add_task(state_mv)
     ns_infra.add_task(show)
+    ns_infra.add_task(workspace_list)
+    ns_infra.add_task(workspace_new)
+    ns_infra.add_task(workspace_select)
+    ns_infra.add_task(workspace_delete)
+    ns_infra.add_task(workspace_show)
+    ns_infra.add_task(providers)
+    ns_infra.add_task(graph)
+    ns_infra.add_task(console)
+    ns_infra.add_task(force_unlock)
+    ns_infra.add_task(get)
+    ns_infra.add_task(refresh)
     ns_infra.add_task(fmt)
 
     return ns_infra

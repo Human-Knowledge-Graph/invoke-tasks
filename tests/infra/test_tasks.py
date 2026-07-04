@@ -501,3 +501,318 @@ class TestFmt:
         get_task(collection, "fmt")(ctx)
         fmt_cmds = [cmd for cmd in run_cmds(ctx) if "terraform fmt" in cmd]
         assert len(fmt_cmds) == 2
+
+
+# ─────────────────────────────────────────────────────────────
+# validate
+# ─────────────────────────────────────────────────────────────
+
+
+class TestValidate:
+    def test_includes_terraform_validate_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "validate")(ctx, env="PROD")
+        assert any("terraform validate" in cmd for cmd in run_cmds(ctx))
+
+    def test_uses_pty(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "validate")(ctx, env="PROD")
+        assert ctx.run.call_args.kwargs.get("pty") is True
+
+
+# ─────────────────────────────────────────────────────────────
+# import
+# ─────────────────────────────────────────────────────────────
+
+
+class TestImport:
+    def test_includes_terraform_import_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "import")(ctx, env="PROD", address="aws_s3_bucket.site", resource_id="my-bucket")
+        assert any("terraform import" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_address_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "import")(ctx, env="PROD", address="aws_s3_bucket.site", resource_id="my-bucket")
+        assert any("aws_s3_bucket.site" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_resource_id_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "import")(ctx, env="PROD", address="aws_s3_bucket.site", resource_id="my-bucket")
+        assert any("my-bucket" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_var_file(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "import")(ctx, env="PROD", address="aws_s3_bucket.site", resource_id="my-bucket")
+        assert any("prod.tfvars" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# state_show
+# ─────────────────────────────────────────────────────────────
+
+
+class TestStateShow:
+    def test_includes_terraform_state_show_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "state-show")(ctx, env="PROD", resource="aws_s3_bucket.site")
+        assert any("terraform state show" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_resource_name(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "state-show")(ctx, env="PROD", resource="aws_s3_bucket.site")
+        assert any("aws_s3_bucket.site" in cmd for cmd in run_cmds(ctx))
+
+    def test_uses_pty(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "state-show")(ctx, env="PROD", resource="aws_s3_bucket.site")
+        assert ctx.run.call_args.kwargs.get("pty") is True
+
+
+# ─────────────────────────────────────────────────────────────
+# state_mv
+# ─────────────────────────────────────────────────────────────
+
+
+class TestStateMv:
+    def test_includes_terraform_state_mv_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "state-mv")(ctx, env="PROD", source="aws_s3_bucket.old", destination="aws_s3_bucket.new")
+        assert any("terraform state mv" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_source_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "state-mv")(ctx, env="PROD", source="aws_s3_bucket.old", destination="aws_s3_bucket.new")
+        assert any("aws_s3_bucket.old" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_destination_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "state-mv")(ctx, env="PROD", source="aws_s3_bucket.old", destination="aws_s3_bucket.new")
+        assert any("aws_s3_bucket.new" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# workspace_list
+# ─────────────────────────────────────────────────────────────
+
+
+class TestWorkspaceList:
+    def test_includes_terraform_workspace_list_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "workspace-list")(ctx, env="PROD")
+        assert any("terraform workspace list" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# workspace_new
+# ─────────────────────────────────────────────────────────────
+
+
+class TestWorkspaceNew:
+    def test_includes_terraform_workspace_new_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "workspace-new")(ctx, env="PROD", name="staging")
+        assert any("terraform workspace new" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_workspace_name(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "workspace-new")(ctx, env="PROD", name="staging")
+        assert any("staging" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# workspace_select
+# ─────────────────────────────────────────────────────────────
+
+
+class TestWorkspaceSelect:
+    def test_includes_terraform_workspace_select_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "workspace-select")(ctx, env="PROD", name="staging")
+        assert any("terraform workspace select" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_workspace_name(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "workspace-select")(ctx, env="PROD", name="staging")
+        assert any("staging" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# workspace_delete
+# ─────────────────────────────────────────────────────────────
+
+
+class TestWorkspaceDelete:
+    def test_includes_terraform_workspace_delete_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "workspace-delete")(ctx, env="PROD", name="staging")
+        assert any("terraform workspace delete" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_workspace_name(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "workspace-delete")(ctx, env="PROD", name="staging")
+        assert any("staging" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# workspace_show
+# ─────────────────────────────────────────────────────────────
+
+
+class TestWorkspaceShow:
+    def test_includes_terraform_workspace_show_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "workspace-show")(ctx, env="PROD")
+        assert any("terraform workspace show" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# providers
+# ─────────────────────────────────────────────────────────────
+
+
+class TestProviders:
+    def test_includes_terraform_providers_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "providers")(ctx, env="PROD")
+        assert any("terraform providers" in cmd for cmd in run_cmds(ctx))
+
+    def test_uses_pty(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "providers")(ctx, env="PROD")
+        assert ctx.run.call_args.kwargs.get("pty") is True
+
+
+# ─────────────────────────────────────────────────────────────
+# graph
+# ─────────────────────────────────────────────────────────────
+
+
+class TestGraph:
+    def test_includes_terraform_graph_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "graph")(ctx, env="PROD")
+        assert any("terraform graph" in cmd for cmd in run_cmds(ctx))
+
+    def test_disables_pty_for_piping(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "graph")(ctx, env="PROD")
+        assert ctx.run.call_args.kwargs.get("pty") is False
+
+
+# ─────────────────────────────────────────────────────────────
+# console
+# ─────────────────────────────────────────────────────────────
+
+
+class TestConsole:
+    def test_includes_terraform_console_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "console")(ctx, env="PROD")
+        assert any("terraform console" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_var_file(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "console")(ctx, env="PROD")
+        assert any("prod.tfvars" in cmd for cmd in run_cmds(ctx))
+
+    def test_uses_pty(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "console")(ctx, env="PROD")
+        assert ctx.run.call_args.kwargs.get("pty") is True
+
+
+# ─────────────────────────────────────────────────────────────
+# force_unlock
+# ─────────────────────────────────────────────────────────────
+
+
+class TestForceUnlock:
+    def test_includes_terraform_force_unlock_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "force-unlock")(ctx, env="PROD", lock_id="abc-123")
+        assert any("terraform force-unlock" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_lock_id_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "force-unlock")(ctx, env="PROD", lock_id="abc-123")
+        assert any("abc-123" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_force_flag(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "force-unlock")(ctx, env="PROD", lock_id="abc-123")
+        assert any("-force" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# get
+# ─────────────────────────────────────────────────────────────
+
+
+class TestGet:
+    def test_includes_terraform_get_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "get")(ctx, env="PROD")
+        assert any("terraform get" in cmd for cmd in run_cmds(ctx))
+
+    def test_does_not_run_backend_init(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "get")(ctx, env="PROD")
+        assert not any("terraform init" in cmd for cmd in run_cmds(ctx))
+
+
+# ─────────────────────────────────────────────────────────────
+# refresh
+# ─────────────────────────────────────────────────────────────
+
+
+class TestRefresh:
+    def test_includes_terraform_refresh_in_command(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "refresh")(ctx, env="PROD")
+        assert any("terraform refresh" in cmd for cmd in run_cmds(ctx))
+
+    def test_includes_var_file(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "refresh")(ctx, env="PROD")
+        assert any("prod.tfvars" in cmd for cmd in run_cmds(ctx))
+
+    def test_uses_pty(self, tmp_path: Path) -> None:
+        ctx = make_ctx()
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "refresh")(ctx, env="PROD")
+        assert ctx.run.call_args.kwargs.get("pty") is True
