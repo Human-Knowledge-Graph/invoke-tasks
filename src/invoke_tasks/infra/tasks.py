@@ -8,7 +8,7 @@ from invoke.tasks import task
 
 from invoke_tasks.infra.backend_bucket import create_backend_bucket as _create_backend_bucket
 from invoke_tasks.infra.cloud_provider import configure_cloud_provider
-from invoke_tasks.infra.infra_config import InfraConfig, load_infra_config
+from invoke_tasks.infra.infra_config import InfraConfig, load_infra_config, validate_infra_yaml
 
 
 def build_infra_collection(config: InfraConfig | None = None) -> Collection:
@@ -314,6 +314,16 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
             pty=True,
         )
 
+    @task(name="validate-yaml-config", help={})
+    def validate_yaml_config(c: Context) -> None:
+        """Validates the structure of infra.yaml (all envs, buckets, and tfvars)."""
+        try:
+            validate_infra_yaml(config.project_root)
+            print("infra.yaml is valid.")
+        except (KeyError, ValueError, FileNotFoundError) as e:
+            print(f"infra.yaml validation failed:\n{e}")
+            raise SystemExit(1)
+
     @task(help={})
     def fmt(c: Context) -> None:
         """Runs terraform fmt on all infra directories."""
@@ -353,5 +363,6 @@ def build_infra_collection(config: InfraConfig | None = None) -> Collection:
     ns_infra.add_task(get)
     ns_infra.add_task(refresh)
     ns_infra.add_task(fmt)
+    ns_infra.add_task(validate_yaml_config)
 
     return ns_infra

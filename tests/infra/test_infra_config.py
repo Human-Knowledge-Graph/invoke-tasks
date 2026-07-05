@@ -17,6 +17,7 @@ from invoke_tasks.infra.infra_config import (
     _read_infra_config,
     _validate_tfvars_against_variables,
     load_infra_config,
+    validate_infra_yaml,
 )
 
 MINIMAL_INFRA_YAML = {
@@ -328,6 +329,100 @@ class TestLoadInfraConfig:
         tfvars_file = infra_dev / "dev.tfvars"
         assert tfvars_file.exists()
         assert 'region = "us-central1"' in tfvars_file.read_text()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# validate_infra_yaml
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestValidateInfraYaml:
+    def test_passes_for_valid_yaml(self, project_root: Path) -> None:
+        validate_infra_yaml(project_root)  # should not raise
+
+    def test_raises_when_file_missing(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            validate_infra_yaml(tmp_path)
+
+    def test_raises_when_envs_section_missing(self, tmp_path: Path) -> None:
+        (tmp_path / "infra.yaml").write_text(yaml.dump({"backend_buckets": {}}))
+        with pytest.raises(ValueError, match="missing required section 'envs'"):
+            validate_infra_yaml(tmp_path)
+
+    def test_raises_when_backend_buckets_section_missing(self, tmp_path: Path) -> None:
+        (tmp_path / "infra.yaml").write_text(yaml.dump({"envs": {}}))
+        with pytest.raises(ValueError, match="missing required section 'backend_buckets'"):
+            validate_infra_yaml(tmp_path)
+
+    def test_raises_when_env_missing_hosted_on(self, tmp_path: Path) -> None:
+        data = {
+            "envs": {"dev": {"infra_dir": "infra/dev"}},
+            "backend_buckets": {},
+        }
+        (tmp_path / "infra.yaml").write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="env 'dev': missing required field 'hosted_on'"):
+            validate_infra_yaml(tmp_path)
+
+    def test_raises_when_env_missing_infra_dir(self, tmp_path: Path) -> None:
+        data = {
+            "envs": {"dev": {"hosted_on": "GCP"}},
+            "backend_buckets": {},
+        }
+        (tmp_path / "infra.yaml").write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="env 'dev': missing required field 'infra_dir'"):
+            validate_infra_yaml(tmp_path)
+
+    def test_raises_when_bucket_missing_hosted_on(self, tmp_path: Path) -> None:
+        data = {
+            "envs": {"dev": {"hosted_on": "GCP", "infra_dir": "infra/dev"}},
+            "backend_buckets": {"dev": {"bucket_name": "my-bucket"}},
+        }
+        (tmp_path / "infra.yaml").write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="backend_bucket 'dev': missing required field 'hosted_on'"):
+            validate_infra_yaml(tmp_path)
+
+    def test_raises_when_bucket_missing_bucket_name(self, tmp_path: Path) -> None:
+        data = {
+            "envs": {"dev": {"hosted_on": "GCP", "infra_dir": "infra/dev"}},
+            "backend_buckets": {"dev": {"hosted_on": "GCP"}},
+        }
+        (tmp_path / "infra.yaml").write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="backend_bucket 'dev': missing required field 'bucket_name'"):
+            validate_infra_yaml(tmp_path)
+
+    def test_raises_when_tfvars_keys_mismatch_envs(self, tmp_path: Path) -> None:
+        data = {
+            "envs": {"dev": {"hosted_on": "GCP", "infra_dir": "infra/dev"}},
+            "backend_buckets": {"dev": {"hosted_on": "GCP", "bucket_name": "dev-bucket"}},
+            "tfvars": {"prod": {"key": "value"}},
+        }
+        (tmp_path / "infra.yaml").write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="tfvars keys"):
+            validate_infra_yaml(tmp_path)
+
+    def test_collects_multiple_errors_before_raising(self, tmp_path: Path) -> None:
+        data = {
+            "envs": {
+                "dev": {"hosted_on": "GCP"},   # missing infra_dir
+                "prod": {"infra_dir": "infra/prod"},  # missing hosted_on
+            },
+            "backend_buckets": {},
+        }
+        (tmp_path / "infra.yaml").write_text(yaml.dump(data))
+        with pytest.raises(ValueError) as exc_info:
+            validate_infra_yaml(tmp_path)
+        msg = str(exc_info.value)
+        assert "dev" in msg
+        assert "prod" in msg
+
+    def test_valid_yaml_with_tfvars_passes(self, tmp_path: Path) -> None:
+        data = {
+            "envs": {"dev": {"hosted_on": "GCP", "infra_dir": "infra/dev"}},
+            "backend_buckets": {"dev": {"hosted_on": "GCP", "bucket_name": "dev-bucket"}},
+            "tfvars": {"dev": {"region": "us-central1"}},
+        }
+        (tmp_path / "infra.yaml").write_text(yaml.dump(data))
+        validate_infra_yaml(tmp_path)  # should not raise
 
 
 # ──────────────────────────────────────────────────────────────────────────────

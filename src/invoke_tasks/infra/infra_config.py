@@ -163,6 +163,50 @@ def load_infra_config(project_root: Path | str | None = None) -> InfraConfig:
     return config
 
 
+def validate_infra_yaml(project_root: Path | str | None = None) -> None:
+    """Validate infra.yaml structure without side effects.
+
+    Collects all errors before raising so the caller sees every problem at once.
+    Raises FileNotFoundError if infra.yaml is missing, ValueError for structural errors.
+    """
+    if project_root is None:
+        resolved_root = _discover_project_root()
+    else:
+        resolved_root = Path(project_root).resolve()
+
+    raw = _read_infra_config(resolved_root)
+    errors: list[str] = []
+
+    for section in ("envs", "backend_buckets"):
+        if section not in raw:
+            errors.append(f"missing required section '{section}'")
+
+    if errors:
+        raise ValueError("\n".join(errors))
+
+    for env, values in raw["envs"].items():
+        for key in ("hosted_on", "infra_dir"):
+            if key not in values:
+                errors.append(f"env '{env}': missing required field '{key}'")
+
+    for env, values in raw["backend_buckets"].items():
+        for key in ("hosted_on", "bucket_name"):
+            if key not in values:
+                errors.append(f"backend_bucket '{env}': missing required field '{key}'")
+
+    if "tfvars" in raw:
+        env_names = set(raw["envs"].keys())
+        tfvars_keys = set(raw["tfvars"].keys())
+        if env_names != tfvars_keys:
+            errors.append(
+                f"tfvars keys {sorted(tfvars_keys)} do not match "
+                f"envs keys {sorted(env_names)}"
+            )
+
+    if errors:
+        raise ValueError("\n".join(errors))
+
+
 def _parse_variables_tf(infra_dir: Path) -> tuple[set[str], set[str]]:
     """Parse variables.tf and return (all variable names, variables with defaults)."""
     variables_tf = infra_dir / "variables.tf"

@@ -1,7 +1,9 @@
 """Tests for infra tasks module."""
+import yaml
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from invoke.context import Context
 
 from invoke_tasks.infra.infra_config import BackendBucket, EnvConfig, InfraConfig
@@ -816,3 +818,64 @@ class TestRefresh:
         collection = build_infra_collection(make_config(tmp_path))
         get_task(collection, "refresh")(ctx, env="PROD")
         assert ctx.run.call_args.kwargs.get("pty") is True
+
+
+# ─────────────────────────────────────────────────────────────
+# validate_yaml_config
+# ─────────────────────────────────────────────────────────────
+
+
+def _write_infra_yaml(tmp_path: Path, data: dict) -> None:
+    (tmp_path / "infra.yaml").write_text(yaml.dump(data))
+
+
+VALID_INFRA_DATA = {
+    "envs": {
+        "PROD": {"hosted_on": "GCP", "gcp_project_id": "proj", "infra_dir": "infra"},
+    },
+    "backend_buckets": {
+        "PROD": {"hosted_on": "GCP", "bucket_name": "my-state-bucket"},
+    },
+}
+
+
+class TestValidateYamlConfig:
+    def test_prints_valid_on_success(self, tmp_path: Path, capsys) -> None:
+        _write_infra_yaml(tmp_path, VALID_INFRA_DATA)
+        collection = build_infra_collection(make_config(tmp_path))
+        get_task(collection, "validate-yaml-config")(make_ctx())
+        assert "valid" in capsys.readouterr().out.lower()
+
+    def test_exits_nonzero_when_env_missing_infra_dir(self, tmp_path: Path) -> None:
+        _write_infra_yaml(tmp_path, {
+            "envs": {"PROD": {"hosted_on": "GCP"}},
+            "backend_buckets": {"PROD": {"hosted_on": "GCP", "bucket_name": "my-state-bucket"}},
+        })
+        collection = build_infra_collection(make_config(tmp_path))
+        with pytest.raises(SystemExit):
+            get_task(collection, "validate-yaml-config")(make_ctx())
+
+    def test_prints_error_message_on_failure(self, tmp_path: Path, capsys) -> None:
+        _write_infra_yaml(tmp_path, {
+            "envs": {"PROD": {"hosted_on": "GCP"}},
+            "backend_buckets": {"PROD": {"hosted_on": "GCP", "bucket_name": "my-state-bucket"}},
+        })
+        collection = build_infra_collection(make_config(tmp_path))
+        with pytest.raises(SystemExit):
+            get_task(collection, "validate-yaml-config")(make_ctx())
+        assert "validation failed" in capsys.readouterr().out.lower()
+
+    def test_exits_nonzero_when_yaml_file_missing(self, tmp_path: Path) -> None:
+        collection = build_infra_collection(make_config(tmp_path))
+        with pytest.raises(SystemExit):
+            get_task(collection, "validate-yaml-config")(make_ctx())
+
+    def test_exits_nonzero_when_tfvars_keys_mismatch(self, tmp_path: Path) -> None:
+        _write_infra_yaml(tmp_path, {
+            "envs": {"PROD": {"hosted_on": "GCP", "infra_dir": "infra"}},
+            "backend_buckets": {"PROD": {"hosted_on": "GCP", "bucket_name": "my-state-bucket"}},
+            "tfvars": {"DEV": {"region": "us-central1"}},
+        })
+        collection = build_infra_collection(make_config(tmp_path))
+        with pytest.raises(SystemExit):
+            get_task(collection, "validate-yaml-config")(make_ctx())
