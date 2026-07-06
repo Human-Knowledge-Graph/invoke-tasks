@@ -262,6 +262,8 @@ def _validate_tfvars_against_variables(infra_path: Path, tv: TfVars) -> None:
 def _format_tfvars_value(value: Any) -> str:
     """Format a Python value as a Terraform tfvars value."""
     if isinstance(value, list):
+        if not value:
+            return "[]"
         items = ",\n".join(f'  "{item}"' for item in value)
         return f"[\n{items},\n]"
     elif isinstance(value, dict):

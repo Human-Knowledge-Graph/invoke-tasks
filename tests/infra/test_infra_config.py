@@ -520,6 +520,9 @@ class TestFormatTfvarsValue:
     def test_integer_value(self) -> None:
         assert _format_tfvars_value(42) == '"42"'
 
+    def test_empty_list_value(self) -> None:
+        assert _format_tfvars_value([]) == "[]"
+
     def test_list_value(self) -> None:
         result = _format_tfvars_value(["a", "b"])
         assert result == '[\n  "a",\n  "b",\n]'
