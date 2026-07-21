@@ -305,6 +305,12 @@ class TestLoadInfraConfig:
         assert len(config.tfvars) == 1
         assert config.tfvars[0].variables == {"region": "us-central1"}
 
+    def test_loads_config_when_project_root_is_none(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "infra.yaml").write_text(yaml.dump(MINIMAL_INFRA_YAML))
+        monkeypatch.chdir(tmp_path)
+        config = load_infra_config(project_root=None)
+        assert len(config.envs) == 2
+
     def test_tfvars_file_written_on_load(self, tmp_path: Path) -> None:
         infra_dev = tmp_path / "infra" / "dev"
         infra_dev.mkdir(parents=True)
@@ -339,6 +345,11 @@ class TestLoadInfraConfig:
 class TestValidateInfraYaml:
     def test_passes_for_valid_yaml(self, project_root: Path) -> None:
         validate_infra_yaml(project_root)  # should not raise
+
+    def test_validates_when_project_root_is_none(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "infra.yaml").write_text(yaml.dump(MINIMAL_INFRA_YAML))
+        monkeypatch.chdir(tmp_path)
+        validate_infra_yaml(project_root=None)  # should not raise
 
     def test_raises_when_file_missing(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
@@ -461,6 +472,13 @@ class TestParseVariablesTf:
         all_vars, defaulted = _parse_variables_tf(tmp_path)
         assert "no_default" in all_vars
         assert "no_default" not in defaulted
+
+    def test_variable_with_nested_braces_parsed_correctly(self, tmp_path: Path) -> None:
+        content = 'variable "config" {\n  type = object({\n    key = string\n  })\n}\n'
+        (tmp_path / "variables.tf").write_text(content)
+        all_vars, defaulted = _parse_variables_tf(tmp_path)
+        assert "config" in all_vars
+        assert "config" not in defaulted
 
 
 # ──────────────────────────────────────────────────────────────────────────────

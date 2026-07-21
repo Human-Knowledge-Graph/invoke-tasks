@@ -51,6 +51,29 @@ def get_task(collection, name):
 
 
 # ─────────────────────────────────────────────────────────────
+# build_infra_collection
+# ─────────────────────────────────────────────────────────────
+
+
+_MINIMAL_INFRA_YAML = {
+    "envs": {
+        "prod": {"hosted_on": "GCP", "gcp_project_id": "my-project", "infra_dir": "infra"},
+    },
+    "backend_buckets": {
+        "prod": {"hosted_on": "GCP", "bucket_name": "my-state-bucket"},
+    },
+}
+
+
+class TestBuildInfraCollection:
+    def test_loads_config_when_none(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "infra.yaml").write_text(yaml.dump(_MINIMAL_INFRA_YAML))
+        monkeypatch.chdir(tmp_path)
+        collection = build_infra_collection(config=None)
+        assert collection is not None
+
+
+# ─────────────────────────────────────────────────────────────
 # get_backend_bucket_name
 # ─────────────────────────────────────────────────────────────
 

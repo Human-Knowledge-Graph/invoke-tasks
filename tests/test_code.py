@@ -512,20 +512,27 @@ class TestTypecov:
         with patch("builtins.open", mock_open(read_data=report)):
             typecov(ctx, strict=False)  # must not raise
 
-    def test_opens_browser_when_open_report_true(self) -> None:
+    def test_opens_browser_when_open_report_true(self, tmp_path, monkeypatch) -> None:
         ctx = make_ctx()
-        mock_path_instance = MagicMock()
-        mock_path_instance.exists.return_value = True
-        mock_path_cls = MagicMock()
-        mock_path_cls.return_value.absolute.return_value = mock_path_instance
+        report_dir = tmp_path / ".mypy-coverage"
+        report_dir.mkdir()
+        (report_dir / "index.txt").write_text(_TYPECOV_REPORT)
+        (report_dir / "index.html").write_text("<html/>")
+        monkeypatch.chdir(tmp_path)
 
-        with (
-            patch("builtins.open", mock_open(read_data=_TYPECOV_REPORT)),
-            patch("invoke_tasks.code.Path", mock_path_cls),
-            patch("invoke_tasks.code.webbrowser") as mock_browser,
-        ):
+        with patch("invoke_tasks.code.webbrowser") as mock_browser:
             typecov(ctx, open_report=True)
         mock_browser.open.assert_called_once()
+
+    def test_warns_when_html_report_not_found(self, tmp_path, monkeypatch, capsys) -> None:
+        ctx = make_ctx()
+        report_dir = tmp_path / ".mypy-coverage"
+        report_dir.mkdir()
+        (report_dir / "index.txt").write_text(_TYPECOV_REPORT)
+        # index.html is intentionally absent — triggers the warning
+        monkeypatch.chdir(tmp_path)
+        typecov(ctx, open_report=True)
+        assert "HTML report not found" in capsys.readouterr().out
 
 
 # ─────────────────────────────────────────────────────────────
